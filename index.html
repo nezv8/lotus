@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Chân Không Lượng Tử & Điểm Va Chạm Hạt</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            height: 6px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+    </style>
+</head>
+<body class="relative min-h-screen overflow-hidden">
+
+    <!-- 3D WebGL Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+    <!-- Header Overlay -->
+    <header class="absolute top-0 left-0 right-0 z-10 p-4 md:p-6 pointer-events-none flex justify-between items-start">
+        <div class="pointer-events-auto flex items-center gap-3">
+            <div class="glass-panel p-3 rounded-2xl flex items-center gap-3 border border-cyan-500/30">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-emerald-400 to-amber-400 flex items-center justify-center text-slate-950 font-bold shadow-lg shadow-cyan-500/30">
+                    <i class="fa-solid fa-atom text-xl animate-spin" style="animation-duration: 12s;"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg md:text-xl text-white tracking-wide flex items-center gap-2">
+                        <span>Mô Phỏng Chân Không Lượng Tử</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 uppercase tracking-wider font-mono">QFT 3D</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Quantum Vacuum Fluctuation | Tánh Không(Śūnyatā)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mode Quick Switcher -->
+        <div class="pointer-events-auto hidden md:flex items-center gap-2 glass-panel p-1.5 rounded-2xl">
+            <button id="btn-mode-1" onclick="switchMode(1)" class="mode-btn px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/30">
+                <i class="fa-solid fa-layer-group"></i> Cột Sóng Tụ (Rings)
+            </button>
+            <button id="btn-mode-2" onclick="switchMode(2)" class="mode-btn px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 text-slate-300 hover:text-white hover:bg-white/5">
+                <i class="fa-solid fa-globe"></i> Lõi Khối Cầu (Sphere Rays)
+            </button>
+            <button id="btn-mode-3" onclick="switchMode(3)" class="mode-btn px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 text-slate-300 hover:text-white hover:bg-white/5">
+                <i class="fa-solid fa-bolt"></i> Tương Tác Hợp Nhất (Hybrid)
+            </button>
+        </div>
+    </header>
+
+    <!-- Mobile Navigation bar -->
+    <div class="md:hidden absolute top-20 left-4 right-4 z-10 flex gap-1 glass-panel p-1 rounded-xl pointer-events-auto">
+        <button id="m-btn-mode-1" onclick="switchMode(1)" class="m-mode-btn flex-1 py-2 text-center text-xs font-medium rounded-lg bg-cyan-500 text-slate-950">
+            Cột Sóng
+        </button>
+        <button id="m-btn-mode-2" onclick="switchMode(2)" class="m-mode-btn flex-1 py-2 text-center text-xs font-medium rounded-lg text-slate-300">
+            Lõi Cầu
+        </button>
+        <button id="m-btn-mode-3" onclick="switchMode(3)" class="m-mode-btn flex-1 py-2 text-center text-xs font-medium rounded-lg text-slate-300">
+            Hợp Nhất
+        </button>
+    </div>
+
+    <!-- Live Telemetry Dashboard Overlay (Left Bottom) -->
+    <div class="absolute bottom-6 left-6 z-10 hidden lg:block pointer-events-none">
+        <div class="glass-panel p-5 rounded-2xl w-80 space-y-4 pointer-events-auto">
+            <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                <span class="text-xs font-semibold tracking-wider text-slate-300 uppercase flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-cyan-400"></i> Thông Số Vật Lý Lượng Tử
+                </span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            </div>
+
+            <div class="space-y-2.5 text-xs">
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400">Năng lượng hạt xuất hiện (E)</span>
+                    <span id="telemetry-energy" class="mono text-cyan-300 font-semibold">14.2 TeV</span>
+                </div>
+                <div class="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                    <div id="bar-energy" class="bg-cyan-400 h-1.5 rounded-full transition-all duration-300" style="width: 72%"></div>
+                </div>
+
+                <div class="flex justify-between items-center pt-1">
+                    <span class="text-slate-400">Tần số dao động chân không</span>
+                    <span id="telemetry-freq" class="mono text-emerald-400 font-semibold">3.82 x 10²⁴ Hz</span>
+                </div>
+                <div class="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                    <div id="bar-freq" class="bg-emerald-400 h-1.5 rounded-full transition-all duration-300" style="width: 85%"></div>
+                </div>
+
+                <div class="flex justify-between items-center pt-1">
+                    <span class="text-slate-400">Xác suất sinh cặp (Virtual Pairs)</span>
+                    <span id="telemetry-prob" class="mono text-amber-300 font-semibold">0.9842</span>
+                </div>
+                <div class="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                    <div id="bar-prob" class="bg-amber-400 h-1.5 rounded-full transition-all duration-300" style="width: 94%"></div>
+                </div>
+
+                <div class="flex justify-between items-center pt-1">
+                    <span class="text-slate-400">Độ hỗn loạn trường (Entropy)</span>
+                    <span id="telemetry-entropy" class="mono text-purple-400 font-semibold">1.402 J/K</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Toggle Button for Control Panel (Mobile Only) -->
+    <button id="btn-toggle-panel" class="fixed bottom-6 right-6 z-25 md:hidden glass-panel w-12 h-12 rounded-full flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/20 hover:scale-110 transition cursor-pointer" title="Mở/Đóng Bảng Tùy Chỉnh">
+        <i class="fa-solid fa-sliders text-lg"></i>
+    </button>
+
+    <!-- Floating Audio Play Button with Rotating Icon -->
+    <button id="btn-audio-toggle" onclick="toggleMusic()" class="fixed bottom-20 right-6 md:bottom-6 md:left-6 z-25 glass-panel w-12 h-12 rounded-full flex items-center justify-center text-slate-400 shadow-lg shadow-cyan-500/20 hover:scale-110 transition cursor-pointer" title="Bật/Tắt Nhạc MP3">
+        <i id="audio-icon" class="fa-solid fa-compact-disc text-xl"></i>
+    </button>
+
+    <!-- Right Controls Panel: Auto-hidden popup on mobile, visible by default on desktop -->
+    <div id="control-panel" class="absolute bottom-20 right-6 md:bottom-6 md:right-6 top-24 md:top-auto z-20 w-80 max-h-[calc(100vh-140px)] md:max-h-[calc(100vh-100px)] overflow-y-auto transition-all duration-300 translate-x-full opacity-0 pointer-events-none md:translate-x-0 md:opacity-100 md:pointer-events-auto">
+        <div class="glass-panel p-5 rounded-2xl space-y-5 relative">
+            <button id="btn-close-panel" class="absolute top-4 right-4 text-slate-400 hover:text-white md:hidden">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <div class="flex items-center justify-between border-b border-white/10 pb-3 pr-6 md:pr-0">
+                <h3 class="font-semibold text-sm text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-cyan-400"></i> Bảng Tùy Chỉnh Trường
+                </h3>
+                <button id="btn-reset" class="text-xs text-slate-400 hover:text-cyan-400 transition">
+                    <i class="fa-solid fa-rotate-left mr-1"></i> Mặc định
+                </button>
+            </div>
+
+            <!-- Color Palette Selector -->
+            <div class="space-y-2">
+                <label class="text-xs text-slate-300 font-medium flex justify-between">
+                    <span>Bảng Màu Nhiệt Lượng Tử</span>
+                    <span id="color-name" class="text-cyan-400 font-mono">Rainbow Heatmap</span>
+                </label>
+                <div class="grid grid-cols-4 gap-1.5">
+                    <button onclick="setColorTheme('rainbow')" class="theme-btn p-1.5 rounded-lg bg-slate-800 border border-cyan-500/50 hover:border-cyan-400 flex flex-col items-center gap-1 group">
+                        <div class="w-full h-3 rounded bg-gradient-to-r from-red-500 via-green-400 to-blue-500"></div>
+                        <span class="text-[10px] text-slate-300">Rainbow</span>
+                    </button>
+                    <button onclick="setColorTheme('quantum')" class="theme-btn p-1.5 rounded-lg bg-slate-800 border border-transparent hover:border-cyan-400 flex flex-col items-center gap-1 group">
+                        <div class="w-full h-3 rounded bg-gradient-to-r from-blue-600 via-cyan-300 to-emerald-400"></div>
+                        <span class="text-[10px] text-slate-300">Cyan Electric</span>
+                    </button>
+                    <button onclick="setColorTheme('thermal')" class="theme-btn p-1.5 rounded-lg bg-slate-800 border border-transparent hover:border-cyan-400 flex flex-col items-center gap-1 group">
+                        <div class="w-full h-3 rounded bg-gradient-to-r from-red-600 via-orange-400 to-yellow-200"></div>
+                        <span class="text-[10px] text-slate-300">Thermal</span>
+                    </button>
+                    <button onclick="setColorTheme('aurora')" class="theme-btn p-1.5 rounded-lg bg-slate-800 border border-transparent hover:border-cyan-400 flex flex-col items-center gap-1 group">
+                        <div class="w-full h-3 rounded bg-gradient-to-r from-purple-600 via-pink-400 to-indigo-300"></div>
+                        <span class="text-[10px] text-slate-300">Aurora</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sliders -->
+            <div class="space-y-4 pt-1">
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300">Tốc Độ Dao Động</span>
+                        <span id="val-speed" class="mono text-cyan-400">1.2x</span>
+                    </div>
+                    <input type="range" id="slider-speed" min="0.1" max="3.0" step="0.1" value="1.2" class="w-full">
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300">Cường Độ Phát Sáng</span>
+                        <span id="val-intensity" class="mono text-cyan-400">1.8</span>
+                    </div>
+                    <input type="range" id="slider-intensity" min="0.5" max="3.5" step="0.1" value="1.8" class="w-full">
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300">Mật Độ Hạt Lượng Tử</span>
+                        <span id="val-density" class="mono text-cyan-400">Medium</span>
+                    </div>
+                    <input type="range" id="slider-density" min="1" max="3" step="1" value="2" class="w-full">
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300">Tốc Độ Xoay Trục</span>
+                        <span id="val-rotation" class="mono text-cyan-400">0.8x</span>
+                    </div>
+                    <input type="range" id="slider-rotation" min="0.0" max="2.5" step="0.1" value="0.8" class="w-full">
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300">Biên Độ Tia Năng Lượng</span>
+                        <span id="val-rays" class="mono text-cyan-400">1.0</span>
+                    </div>
+                    <input type="range" id="slider-rays" min="0.2" max="2.0" step="0.1" value="1.0" class="w-full">
+                </div>
+            </div>
+
+            <!-- Tánh Không Lượng Tử: mô hình trực quan mang tính ẩn dụ -->
+            <div class="pt-3 border-t border-white/10 space-y-2">
+                <div class="flex items-center gap-2 text-xs font-semibold text-violet-300">
+                    <i class="fa-solid fa-infinity"></i> Tánh Không Lượng Tử · Śūnyatā
+                </div>
+                <p class="text-[11px] leading-relaxed text-slate-300">
+                    Trường nền biểu trưng cho tính không cố định: các dạng hạt và cấu trúc chỉ hiện lên trong quan hệ, điều kiện và quan sát. Tánh Không (Sunyata) có nghĩa là sự vật không có một "tự tánh" (bản chất độc lập, vĩnh hằng) riêng biệt nào ở bên trong nó; mọi thứ tồn tại do duyên khởi (tương quan, nương vào nhau).
+                </p>
+                <label class="flex items-center justify-between text-xs text-slate-300">
+                    <span>Hiện trường duyên khởi</span>
+                    <input id="toggle-dependent-arising" type="checkbox" checked class="accent-violet-400">
+                </label>
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300">Mật độ liên kết duyên khởi</span>
+                        <span id="val-dependent-density" class="mono text-violet-300">Cân bằng</span>
+                    </div>
+                    <input type="range" id="slider-dependent-density" min="1" max="3" step="1" value="2" class="w-full">
+                </div>
+                <div class="text-[10px] text-slate-500">Liên kết dùng LineSegments tĩnh, giới hạn số đường và FPS để giảm tải RAM/CPU/GPU.</div>
+            </div>
+
+            <!-- Quick Action Toggles -->
+            <div class="pt-2 border-t border-white/10 flex items-center justify-between">
+                <button id="btn-pause" class="flex-1 mr-2 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-pause"></i> Tạm Dừng
+                </button>
+                <button id="btn-wireframe" class="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-border-none"></i> Khung Lưới
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script>
+        let scene, camera, renderer, controls;
+        let ringStackGroup, sphereCoreGroup, quantumFoamParticles, dependentArisingLines;
+        let clock = new THREE.Clock();
+        
+        const params = {
+            mode: 1,
+            speed: 1.2,
+            intensity: 1.8,
+            density: 2,
+            rotationSpeed: 0.8,
+            rayScale: 1.0,
+            isPaused: false,
+            wireframe: true,
+            dependentDensity: 2,
+            theme: 'rainbow'
+        };
+
+        let sphereMaterial, auraRayMaterial;
+
+        const COLOR_THEMES = {
+            rainbow: [new THREE.Color(0xff0033), new THREE.Color(0xffaa00), new THREE.Color(0x00ff66), new THREE.Color(0x00e1ff), new THREE.Color(0x0033ff)],
+            quantum: [new THREE.Color(0x0284c7), new THREE.Color(0x38bdf8), new THREE.Color(0x34d399), new THREE.Color(0x059669), new THREE.Color(0x1e1b4b)],
+            thermal: [new THREE.Color(0xd97706), new THREE.Color(0xef4444), new THREE.Color(0xf59e0b), new THREE.Color(0xfef08a), new THREE.Color(0x450a0a)],
+            aurora: [new THREE.Color(0x9333ea), new THREE.Color(0xc084fc), new THREE.Color(0xf472b6), new THREE.Color(0x38bdf8), new THREE.Color(0x0f172a)]
+        };
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x030712, 0.015);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(25, 15, 35);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "low-power", alpha: false });
+            // Giới hạn độ phân giải để giảm tải GPU/VRAM.
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth < 768 ? 1 : 1.25));
+            // Pixel ratio được cấu hình ngay khi tạo renderer ở trên.
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 120;
+            controls.minDistance = 5;
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const pointLight = new THREE.PointLight(0x00f0ff, 2, 100);
+            pointLight.position.set(0, 0, 0);
+            scene.add(pointLight);
+
+            ringStackGroup = new THREE.Group();
+            sphereCoreGroup = new THREE.Group();
+            scene.add(ringStackGroup);
+            scene.add(sphereCoreGroup);
+
+            buildQuantumFoam();
+            buildRingStack();
+            buildSphereCore();
+            updateModeVisibility();
+
+            window.addEventListener('resize', onWindowResize);
+            setupUIEventListeners();
+            setupPanelToggle();
+        }
+
+        function buildQuantumFoam() {
+            if (quantumFoamParticles) {
+                scene.remove(quantumFoamParticles);
+                quantumFoamParticles.geometry.dispose();
+                quantumFoamParticles.material.dispose();
+            }
+            const particleCount = params.density === 1 ? 450 : (params.density === 3 ? 1100 : 700);
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            const palette = COLOR_THEMES[params.theme];
+
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                const u = Math.random();
+                const v = Math.random();
+                const theta = u * 2.0 * Math.PI;
+                const phi = Math.acos(2.0 * v - 1.0);
+                const r = 20 + Math.cbrt(Math.random()) * 60;
+
+                positions[i] = r * Math.sin(phi) * Math.cos(theta);
+                positions[i + 1] = r * Math.sin(phi) * Math.sin(theta);
+                positions[i + 2] = r * Math.cos(phi);
+
+                const c = palette[Math.floor(Math.random() * palette.length)];
+                colors[i] = c.r;
+                colors[i + 1] = c.g;
+                colors[i + 2] = c.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // Duyên khởi: đồ thị liên kết tĩnh, số cạnh được giới hạn để tiết kiệm tài nguyên.
+            if (dependentArisingLines) {
+                scene.remove(dependentArisingLines);
+                dependentArisingLines.geometry.dispose();
+                dependentArisingLines.material.dispose();
+            }
+            const edgeFactor = params.dependentDensity === 1 ? 1 : (params.dependentDensity === 3 ? 3 : 2);
+            const edgeCount = Math.min(particleCount * edgeFactor, 2600);
+            const linePositions = new Float32Array(edgeCount * 6);
+            const lineColors = new Float32Array(edgeCount * 6);
+            for (let e = 0; e < edgeCount; e++) {
+                const a = Math.floor(Math.random() * particleCount);
+                let b = Math.floor(Math.random() * particleCount);
+                if (b === a) b = (b + 1) % particleCount;
+                for (let k = 0; k < 3; k++) {
+                    linePositions[e * 6 + k] = positions[a * 3 + k];
+                    linePositions[e * 6 + 3 + k] = positions[b * 3 + k];
+                    const tint = palette[(e + k) % palette.length];
+                    lineColors[e * 6 + k] = tint.r * 0.65;
+                    lineColors[e * 6 + 3 + k] = tint.r * 0.65;
+                }
+            }
+            const lineGeometry = new THREE.BufferGeometry();
+            lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+            lineGeometry.setAttribute('color', new THREE.BufferAttribute(lineColors, 3));
+            dependentArisingLines = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({
+                vertexColors: true, transparent: true, opacity: params.dependentDensity === 1 ? 0.12 : 0.22,
+                blending: THREE.AdditiveBlending, depthWrite: false
+            }));
+            scene.add(dependentArisingLines);
+
+            quantumFoamParticles = new THREE.Points(geometry, new THREE.PointsMaterial({
+                size: 0.35,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.6,
+                blending: THREE.AdditiveBlending
+            }));
+            scene.add(quantumFoamParticles);
+        }
+
+        function buildRingStack() {
+            while(ringStackGroup.children.length > 0) {
+                const obj = ringStackGroup.children[0];
+                ringStackGroup.remove(obj);
+                obj.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
+                        else child.material.dispose();
+                    }
+                });
+            }
+
+            const ringCount = params.density === 1 ? 5 : (params.density === 3 ? 9 : 7);
+            const spacing = 1.8;
+            const palette = COLOR_THEMES[params.theme];
+
+            for (let i = 0; i < ringCount; i++) {
+                const yOffset = (i - (ringCount - 1) / 2) * spacing;
+                const distFromCenter = Math.abs(i - (ringCount - 1) / 2) / ((ringCount - 1) / 2);
+
+                const sliceGroup = new THREE.Group();
+                sliceGroup.position.y = yOffset;
+                sliceGroup.userData = { initialY: yOffset, index: i };
+
+                const innerRadius = 1.2 + (1 - distFromCenter) * 2.2;
+                const tubeRadius = 0.4 + (1 - distFromCenter) * 0.5;
+                const colorIdx = Math.min(Math.floor(distFromCenter * palette.length), palette.length - 1);
+                const matColor = palette[colorIdx];
+
+                const torusMesh = new THREE.Mesh(
+                    new THREE.TorusGeometry(innerRadius, tubeRadius, 10, 32),
+                    new THREE.MeshStandardMaterial({
+                        color: matColor,
+                        emissive: matColor,
+                        emissiveIntensity: params.intensity * 0.8,
+                        roughness: 0.2,
+                        metalness: 0.8,
+                        transparent: true,
+                        opacity: 0.85,
+                        wireframe: params.wireframe
+                    })
+                );
+                torusMesh.rotation.x = Math.PI / 2;
+                sliceGroup.add(torusMesh);
+
+                const outerMesh = new THREE.Mesh(
+                    new THREE.TorusGeometry(innerRadius * 1.85, tubeRadius * 0.35, 8, 24),
+                    new THREE.MeshBasicMaterial({
+                        color: palette[Math.min(colorIdx + 2, palette.length - 1)],
+                        transparent: true,
+                        opacity: 0.45,
+                        wireframe: params.wireframe,
+                        blending: THREE.AdditiveBlending
+                    })
+                );
+                outerMesh.rotation.x = Math.PI / 2;
+                sliceGroup.add(outerMesh);
+
+                ringStackGroup.add(sliceGroup);
+            }
+        }
+
+        function buildSphereCore() {
+            while(sphereCoreGroup.children.length > 0) {
+                const obj = sphereCoreGroup.children[0];
+                sphereCoreGroup.remove(obj);
+                obj.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
+                        else child.material.dispose();
+                    }
+                });
+            }
+
+            const palette = COLOR_THEMES[params.theme];
+
+            sphereMaterial = new THREE.MeshStandardMaterial({
+                color: palette[0],
+                emissive: palette[1],
+                emissiveIntensity: params.intensity,
+                roughness: 0.1,
+                wireframe: params.wireframe,
+                transparent: true,
+                opacity: 0.88
+            });
+            sphereCoreGroup.add(new THREE.Mesh(new THREE.IcosahedronGeometry(5, 2), sphereMaterial));
+
+            const rayCount = params.density === 1 ? 50 : (params.density === 3 ? 120 : 80);
+            const rayGeometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+
+            for (let i = 0; i < rayCount; i++) {
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                const innerR = 4.8;
+                const outerR = 9 + Math.random() * 8 * params.rayScale;
+
+                positions.push(
+                    innerR * Math.sin(phi) * Math.cos(theta), innerR * Math.sin(phi) * Math.sin(theta), innerR * Math.cos(phi),
+                    outerR * Math.sin(phi) * Math.cos(theta), outerR * Math.sin(phi) * Math.sin(theta), outerR * Math.cos(phi)
+                );
+
+                const c1 = palette[1];
+                const c2 = palette[palette.length - 1];
+                colors.push(c1.r, c1.g, c1.b, c2.r, c2.g, c2.b);
+            }
+
+            rayGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            rayGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+            sphereCoreGroup.add(new THREE.LineSegments(rayGeometry, new THREE.LineBasicMaterial({
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.75,
+                blending: THREE.AdditiveBlending,
+                linewidth: 2
+            })));
+
+            sphereCoreGroup.add(new THREE.Mesh(
+                new THREE.SphereGeometry(7.5, 18, 18),
+                new THREE.MeshBasicMaterial({
+                    color: palette[palette.length - 2],
+                    transparent: true,
+                    opacity: 0.25,
+                    wireframe: true,
+                    blending: THREE.AdditiveBlending
+                })
+            ));
+        }
+
+        function switchMode(modeNum) {
+            params.mode = modeNum;
+            updateModeVisibility();
+
+            document.querySelectorAll('.mode-btn').forEach((btn, idx) => {
+                btn.className = (idx + 1 === modeNum) ? 
+                    "mode-btn px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/30" : 
+                    "mode-btn px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 text-slate-300 hover:text-white hover:bg-white/5";
+            });
+
+            document.querySelectorAll('.m-mode-btn').forEach((btn, idx) => {
+                btn.className = (idx + 1 === modeNum) ? 
+                    "m-mode-btn flex-1 py-2 text-center text-xs font-medium rounded-lg bg-cyan-500 text-slate-950" : 
+                    "m-mode-btn flex-1 py-2 text-center text-xs font-medium rounded-lg text-slate-300";
+            });
+        }
+
+        function updateModeVisibility() {
+            ringStackGroup.visible = (params.mode === 1 || params.mode === 3);
+            sphereCoreGroup.visible = (params.mode === 2 || params.mode === 3);
+            const toggle = document.getElementById('toggle-dependent-arising');
+            const showArising = (params.mode === 2 || params.mode === 3) && (!toggle || toggle.checked);
+            if (quantumFoamParticles) quantumFoamParticles.visible = showArising;
+            if (dependentArisingLines) dependentArisingLines.visible = showArising;
+        }
+
+        function setColorTheme(themeName) {
+            if (!COLOR_THEMES[themeName]) return;
+            params.theme = themeName;
+            document.getElementById('color-name').innerText = themeName.toUpperCase();
+            buildRingStack();
+            buildSphereCore();
+            buildQuantumFoam();
+            updateModeVisibility();
+        }
+
+        function setupPanelToggle() {
+            const panel = document.getElementById('control-panel');
+            const btnToggle = document.getElementById('btn-toggle-panel');
+            const btnClose = document.getElementById('btn-close-panel');
+            let isMobileOpen = false;
+
+            btnToggle.addEventListener('click', () => {
+                isMobileOpen = !isMobileOpen;
+                panel.classList.toggle('translate-x-full', !isMobileOpen);
+                panel.classList.toggle('opacity-0', !isMobileOpen);
+                panel.classList.toggle('pointer-events-none', !isMobileOpen);
+                panel.classList.toggle('translate-x-0', isMobileOpen);
+                panel.classList.toggle('opacity-100', isMobileOpen);
+                panel.classList.toggle('pointer-events-auto', isMobileOpen);
+                btnToggle.classList.toggle('bg-cyan-500/20', isMobileOpen);
+                btnToggle.classList.toggle('border', isMobileOpen);
+                btnToggle.classList.toggle('border-cyan-500/50', isMobileOpen);
+            });
+
+            if (btnClose) {
+                btnClose.addEventListener('click', () => {
+                    isMobileOpen = false;
+                    panel.classList.add('translate-x-full', 'opacity-0', 'pointer-events-none');
+                    panel.classList.remove('translate-x-0', 'opacity-100', 'pointer-events-auto');
+                    btnToggle.classList.remove('bg-cyan-500/20', 'border', 'border-cyan-500/50');
+                });
+            }
+        }
+
+        // --- CẤU HÌNH LINK MP3 TÙY CHỈNH TẠI ĐÂY ---
+        const MUSIC_URL = './mp3/universal-path.mp3';
+        let bgAudio = new Audio(MUSIC_URL);
+        bgAudio.loop = true;
+        bgAudio.volume = 0.5;
+        let isPlayingAudio = false;
+
+        async function startMusic() {
+            const icon = document.getElementById('audio-icon');
+            try {
+                // Tự phát khi trình duyệt cho phép; nếu bị chặn, sẽ thử lại ở tương tác đầu tiên.
+                await bgAudio.play();
+                isPlayingAudio = true;
+                icon.className = "fa-solid fa-compact-disc text-xl animate-spin text-cyan-400";
+                document.getElementById('btn-audio-toggle').title = "Tắt nhạc";
+                return true;
+            } catch (err) {
+                // Chính sách autoplay của trình duyệt có thể yêu cầu thao tác người dùng.
+                isPlayingAudio = false;
+                icon.className = "fa-solid fa-compact-disc text-xl text-slate-400";
+                return false;
+            }
+        }
+
+        function stopMusic() {
+            bgAudio.pause();
+            isPlayingAudio = false;
+            const icon = document.getElementById('audio-icon');
+            icon.className = "fa-solid fa-compact-disc text-xl text-slate-400";
+            document.getElementById('btn-audio-toggle').title = "Bật nhạc";
+        }
+
+        function toggleMusic() {
+            if (isPlayingAudio && !bgAudio.paused) stopMusic();
+            else startMusic();
+        }
+
+        // Thử tự phát khi tải trang. Nếu trình duyệt chặn, phát lại ở lần tương tác đầu tiên.
+        function setupAutoplayMusic() {
+            startMusic();
+            const resumeOnFirstGesture = () => {
+                if (!isPlayingAudio) startMusic();
+                if (isPlayingAudio) {
+                    document.removeEventListener('pointerdown', resumeOnFirstGesture, true);
+                    document.removeEventListener('keydown', resumeOnFirstGesture, true);
+                    document.removeEventListener('touchstart', resumeOnFirstGesture, true);
+                }
+            };
+            document.addEventListener('pointerdown', resumeOnFirstGesture, true);
+            document.addEventListener('keydown', resumeOnFirstGesture, true);
+            document.addEventListener('touchstart', resumeOnFirstGesture, true);
+        }
+
+        // Nút nhạc là công tắc riêng; các click khác trên trang chỉ kích hoạt nhạc nếu autoplay bị chặn.
+        document.getElementById('btn-audio-toggle').addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+        setupAutoplayMusic();
+
+        function setupUIEventListeners() {
+            document.getElementById('slider-speed').addEventListener('input', (e) => {
+                params.speed = parseFloat(e.target.value);
+                document.getElementById('val-speed').innerText = params.speed.toFixed(1) + 'x';
+            });
+
+            document.getElementById('slider-intensity').addEventListener('input', (e) => {
+                params.intensity = parseFloat(e.target.value);
+                document.getElementById('val-intensity').innerText = params.intensity.toFixed(1);
+                ringStackGroup.traverse((child) => {
+                    if (child.isMesh && child.material.emissiveIntensity !== undefined) {
+                        child.material.emissiveIntensity = params.intensity * 0.8;
+                    }
+                });
+                if (sphereMaterial) sphereMaterial.emissiveIntensity = params.intensity;
+            });
+
+            document.getElementById('slider-dependent-density').addEventListener('input', (e) => {
+                params.dependentDensity = parseInt(e.target.value, 10);
+                document.getElementById('val-dependent-density').innerText = ["Thưa", "Cân bằng", "Dày"][params.dependentDensity - 1];
+                buildQuantumFoam();
+                updateModeVisibility();
+            });
+
+            document.getElementById('toggle-dependent-arising').addEventListener('change', updateModeVisibility);
+
+            document.getElementById('slider-density').addEventListener('input', (e) => {
+                params.density = parseInt(e.target.value);
+                document.getElementById('val-density').innerText = ["Thưa", "Cân Bằng", "Dày Đặc"][params.density - 1];
+                buildRingStack();
+                buildQuantumFoam();
+            });
+
+            document.getElementById('slider-rotation').addEventListener('input', (e) => {
+                params.rotationSpeed = parseFloat(e.target.value);
+                document.getElementById('val-rotation').innerText = params.rotationSpeed.toFixed(1) + 'x';
+            });
+
+            document.getElementById('slider-rays').addEventListener('input', (e) => {
+                params.rayScale = parseFloat(e.target.value);
+                document.getElementById('val-rays').innerText = params.rayScale.toFixed(1);
+                buildSphereCore();
+            });
+
+            document.getElementById('btn-pause').addEventListener('click', function() {
+                params.isPaused = !params.isPaused;
+                this.innerHTML = params.isPaused ? '<i class="fa-solid fa-play"></i> Tiếp Tục' : '<i class="fa-solid fa-pause"></i> Tạm Dừng';
+            });
+
+            const wireButton = document.getElementById('btn-wireframe');
+            wireButton.classList.add('bg-cyan-500/20', 'text-cyan-300');
+            wireButton.innerHTML = '<i class="fa-solid fa-border-all"></i> Khung Lưới: Bật';
+            document.getElementById('btn-wireframe').addEventListener('click', function() {
+                params.wireframe = !params.wireframe;
+                this.classList.toggle('bg-cyan-500/20', params.wireframe);
+                this.classList.toggle('text-cyan-300', params.wireframe);
+                this.innerHTML = params.wireframe
+                    ? '<i class="fa-solid fa-border-all"></i> Khung Lưới: Bật'
+                    : '<i class="fa-solid fa-border-none"></i> Khung Lưới: Tắt';
+                ringStackGroup.traverse((child) => { if (child.isMesh) child.material.wireframe = params.wireframe; });
+                sphereCoreGroup.traverse((child) => { if (child.isMesh) child.material.wireframe = params.wireframe; });
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        let animationFrameId = 0;
+        let lastRenderTime = 0;
+        let lastTelemetryTime = 0;
+        let pageVisible = !document.hidden;
+        const TARGET_FRAME_MS = 1000 / 30; // 30 FPS để giảm CPU/GPU
+        const TELEMETRY_INTERVAL = 250; // cập nhật DOM tối đa 4 lần/giây
+
+        document.addEventListener('visibilitychange', () => {
+            pageVisible = !document.hidden;
+            if (pageVisible && !animationFrameId) {
+                lastRenderTime = 0;
+                animationFrameId = requestAnimationFrame(animate);
+            }
+        });
+
+        function animate(timestamp) {
+            animationFrameId = 0;
+            if (!pageVisible) return;
+
+            if (timestamp - lastRenderTime < TARGET_FRAME_MS) {
+                animationFrameId = requestAnimationFrame(animate);
+                return;
+            }
+            const delta = lastRenderTime ? Math.min((timestamp - lastRenderTime) / 1000, 0.05) : 1 / 30;
+            lastRenderTime = timestamp;
+
+            const time = clock.getElapsedTime() * params.speed;
+            if (!params.isPaused) {
+                if (ringStackGroup.visible) {
+                    ringStackGroup.rotation.y += 0.3 * params.rotationSpeed * delta;
+                    ringStackGroup.children.forEach((sliceGroup) => {
+                        const idx = sliceGroup.userData.index;
+                        sliceGroup.position.y = sliceGroup.userData.initialY + Math.sin(time * 2.5 + idx * 0.4) * 0.6;
+                        const scaleFactor = 1 + Math.sin(time * 3.0 + idx * 0.5) * 0.08;
+                        sliceGroup.scale.setScalar(scaleFactor);
+                    });
+                }
+
+                if (sphereCoreGroup.visible) {
+                    sphereCoreGroup.rotation.y += 0.48 * params.rotationSpeed * delta;
+                    sphereCoreGroup.rotation.z += 0.18 * params.rotationSpeed * delta;
+                }
+
+                if (quantumFoamParticles && (params.mode === 2 || params.mode === 3)) {
+                    quantumFoamParticles.rotation.y += 0.048 * delta;
+                }
+
+                if (timestamp - lastTelemetryTime >= TELEMETRY_INTERVAL) {
+                    updateTelemetryUI(time);
+                    lastTelemetryTime = timestamp;
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function updateTelemetryUI(time) {
+            const energy = (14.0 + Math.sin(time * 1.5) * 0.8).toFixed(2);
+            const freq = (3.8 + Math.cos(time * 2.0) * 0.25).toFixed(2);
+            const prob = (0.98 + Math.sin(time * 3.0) * 0.015).toFixed(4);
+
+            document.getElementById('telemetry-energy').innerText = `${energy} TeV`;
+            document.getElementById('telemetry-freq').innerText = `${freq} x 10²⁴ Hz`;
+            document.getElementById('telemetry-prob').innerText = prob;
+
+            document.getElementById('bar-energy').style.width = `${(energy / 16) * 100}%`;
+            document.getElementById('bar-freq').style.width = `${(freq / 4.5) * 100}%`;
+            document.getElementById('bar-prob').style.width = `${prob * 100}%`;
+        }
+
+        window.addEventListener('pagehide', () => {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (renderer) renderer.dispose();
+            if (bgAudio) bgAudio.pause();
+        });
+
+        window.onload = function() {
+            init();
+            animationFrameId = requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
